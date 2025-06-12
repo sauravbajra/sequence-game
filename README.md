@@ -38,6 +38,7 @@ This project is a multiplayer implementation of the classic board game Sequence.
 ├── main.go             # Core Go backend server logic
 ├── static/
 │   └── index.html      # HTML web client
+├── Makefile            # Makefile for building, running, and cleaning the project
 └── README.md           # This file: Project overview, setup, and usage
 
 
@@ -49,27 +50,54 @@ This project is a multiplayer implementation of the classic board game Sequence.
 
 2.  **Get Dependencies:**
     Open your terminal in the project's root directory and run:
-    ```bash
-    go get [github.com/gorilla/websocket](https://github.com/gorilla/websocket)
+    ```sh
+    go mod tidy
     ```
+    This will ensure all dependencies listed in `go.mod` are installed.
 
 3.  **Prepare Client File:**
-    * Create a directory named `static` in the root of your project.
-    * Place the web client HTML file (provided as `index.html` during development) inside this `static` directory.
+    Ensure the `static` directory exists in your project root and contains `index.html`. This file is required for the web client.
 
 4.  **Run the Backend Server:**
-    Navigate to the project's root directory in your terminal and run:
-    ```bash
-    go run main.go
-    ```
-    You should see log messages indicating the server has started, typically on port `8080`.
+    You can run the server in two ways:
+    - Using Go directly:
+      ```sh
+      go run main.go
+      ```
+    - Or, using the Makefile (recommended):
+      ```sh
+      make run
+      ```
+    You should see log messages indicating the server has started, typically on port `8008`.
 
 5.  **Access the Game:**
     Open your web browser and navigate to:
     ```
-    http://localhost:8080
+    http://localhost:8008
     ```
     This will load the web client, and you can start creating or joining games.
+
+## Build and Run with Makefile
+
+This project includes a `Makefile` for convenient building and running:
+
+- **Build the server:**
+  ```sh
+  make build
+  ```
+  This compiles the Go backend and produces a `sequence-game` binary.
+
+- **Run the server:**
+  ```sh
+  make run
+  ```
+  This builds (if needed) and runs the backend server. By default, it serves the web client at [http://localhost:8008](http://localhost:8008).
+
+- **Clean build artifacts:**
+  ```sh
+  make clean
+  ```
+  This removes the compiled binary.
 
 ## Key Backend Components (`main.go`)
 
@@ -106,7 +134,5 @@ This project is a multiplayer implementation of the classic board game Sequence.
 ## Important Note on Board Layout
 
 The accuracy of the `boardCardDistribution` array in `main.go` is **critical** for the game to function correctly according to standard Sequence rules. This array defines which card corresponds to each space on the board. Ensure it's verified and complete. The `parseCardID` function is designed to handle suffixes (like `_alt`) in this array for representing the second instance of a card.
-
----
 
 
