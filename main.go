@@ -23,7 +23,31 @@ const (
 	DefaultSequencesToWin = 2
 	StaticDir             = "./static"   // Directory for static files
 	ClientHTMLFile        = "index.html" // Name of your HTML client file
+	LogsDir               = "./logs"     // Directory for game logs
 )
+
+// --- Utility: Ensure logs directory exists ---
+func ensureLogsDir() error {
+	if _, err := os.Stat(LogsDir); os.IsNotExist(err) {
+		return os.MkdirAll(LogsDir, 0o755)
+	}
+	return nil
+}
+
+// --- Utility: Write game log ---
+func writeGameLog(gameID string, content string) error {
+	if err := ensureLogsDir(); err != nil {
+		return err
+	}
+	logFile := filepath.Join(LogsDir, gameID+".log")
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(content + "\n")
+	return err
+}
 
 // --- Enums for Cards ---
 type Suit int
@@ -400,26 +424,70 @@ func NewGame(hostID, hostName string, maxPlayers, sequencesToWin int) *Game {
 	return g
 }
 
-// AddPlayer adds a player to the game
+// --- Helper: Count unique sequences only ---
+func (g *Game) countUniqueSequences(playerID string) int {
+	locked := make(map[[5][2]int]bool)
+	unique := 0
+	dirs := [][2]int{{0, 1}, {1, 0}, {1, 1}, {1, -1}}
+	for x := 0; x < BoardSize; x++ {
+		for y := 0; y < BoardSize; y++ {
+			for _, dir := range dirs {
+				var seq [5][2]int
+				ok := true
+				for i := 0; i < 5; i++ {
+					nx, ny := x+dir[0]*i, y+dir[1]*i
+					if nx < 0 || nx >= BoardSize || ny < 0 || ny >= BoardSize {
+						ok = false
+						break
+					}
+					space := g.Board[nx][ny]
+					if !(space.OccupiedBy == playerID || (space.IsCorner && !space.IsLocked)) {
+						ok = false
+						break
+					}
+					seq[i] = [2]int{nx, ny}
+				}
+				if ok && !locked[seq] {
+					unique++
+					locked[seq] = true
+				}
+			}
+		}
+	}
+	return unique
+}
+
+// AddPlayer adds a player to the game or reconnects them if PlayerID matches
 func (g *Game) AddPlayer(playerID, playerName string, conn *websocket.Conn) (*Player, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.GamePhase != "Lobby" {
-		return nil, fmt.Errorf("game %s is already in progress", g.ID)
+	if g.GamePhase != "Lobby" && g.GamePhase != "InProgress" {
+		return nil, fmt.Errorf("game %s is not joinable", g.ID)
 	}
-	if len(g.Players) >= g.MaxPlayers {
+	if len(g.Players) >= g.MaxPlayers && g.Players[playerID] == nil {
 		return nil, fmt.Errorf("game %s is full", g.ID)
 	}
 
+	// Rejoin by PlayerID (preferred)
 	if existingPlayer, exists := g.Players[playerID]; exists {
 		existingPlayer.Conn = conn
 		existingPlayer.IsConnected = true
-		existingPlayer.Name = playerName
-		log.Printf("Player %s (%s) reconnected to game %s", playerName, playerID, g.ID)
+		log.Printf("Player %s (%s) rejoined game %s", existingPlayer.Name, playerID, g.ID)
 		return existingPlayer, nil
 	}
 
+	// Rejoin by name (legacy fallback)
+	for _, existingPlayer := range g.Players {
+		if existingPlayer.Name == playerName {
+			existingPlayer.Conn = conn
+			existingPlayer.IsConnected = true
+			log.Printf("Player %s (rejoin by name) reconnected to game %s", playerName, g.ID)
+			return existingPlayer, nil
+		}
+	}
+
+	// New player
 	colors := []string{"red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan", "lime", "brown", "teal", "magenta"}
 	chipColor := colors[len(g.Players)%len(colors)]
 
@@ -543,7 +611,7 @@ func (g *Game) PlayAction(playerID string, action PlayerAction) error {
 
 	newSequencesFormed := g.checkForSequencesAfterPlay(playerID, action.BoardPos.X, action.BoardPos.Y)
 	if newSequencesFormed > 0 {
-		player.Sequences += newSequencesFormed
+		player.Sequences = g.countUniqueSequences(playerID)
 		log.Printf("Player %s formed %d new sequence(s)! Total sequences: %d", player.Name, newSequencesFormed, player.Sequences)
 		if player.Sequences >= g.NumSequencesToWin {
 			g.GamePhase = "Finished"
@@ -801,7 +869,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	playerID := generateID()
+	// Accept PlayerID from client if provided, else generate new
+	var handshake struct {
+		PlayerID string `json:"playerId"`
+	}
+	conn.ReadJSON(&handshake)
+	playerID := handshake.PlayerID
+	if playerID == "" {
+		playerID = generateID()
+	}
 	var currentGame *Game
 	var currentPlayer *Player
 	log.Printf("Player %s connected via WebSocket.", playerID)
@@ -839,6 +915,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Printf("Received action from %s: %s, Payload: %+v", playerID, msg.ActionType, msg.Payload)
+		if currentGame != nil {
+			_ = writeGameLog(currentGame.ID, fmt.Sprintf("Action from %s: %s, Payload: %+v", playerID, msg.ActionType, msg.Payload))
+		}
 
 		switch msg.ActionType {
 		case "CREATE_GAME":
@@ -858,6 +937,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			currentPlayer = player
 			log.Printf("Player %s (%s) created game %s as host.", currentPlayer.Name, playerID, currentGame.ID)
+			_ = writeGameLog(currentGame.ID, fmt.Sprintf("Player %s (%s) created the game as host", currentPlayer.Name, playerID))
 			currentGame.broadcastGameState("GAME_CREATED", nil)
 
 		case "JOIN_GAME":
@@ -878,6 +958,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			currentPlayer = player
 			log.Printf("Player %s (%s) joined game %s.", currentPlayer.Name, playerID, currentGame.ID)
+			_ = writeGameLog(currentGame.ID, fmt.Sprintf("Player %s (%s) joined the game", currentPlayer.Name, playerID))
 			currentGame.broadcastGameState("PLAYER_JOINED", map[string]string{"playerName": currentPlayer.Name, "playerId": currentPlayer.ID})
 
 		case "START_GAME":
@@ -894,6 +975,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			log.Printf("Game %s started by host %s.", currentGame.ID, currentPlayer.Name)
+			_ = writeGameLog(currentGame.ID, fmt.Sprintf("Game started by host %s (%s)", currentPlayer.Name, currentPlayer.ID))
 			currentGame.broadcastGameState("GAME_STARTED", nil)
 
 		case "PLAY_ACTION":
@@ -929,6 +1011,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			currentGame.broadcastGameState("GAME_UPDATE", detail)
 			if currentGame.GamePhase == "Finished" {
 				log.Printf("Game %s finished. Winner: %s", currentGame.ID, currentGame.Winner)
+				_ = writeGameLog(currentGame.ID, fmt.Sprintf("Game finished. Winner: %s", currentGame.Winner))
 			}
 
 		case "DEAD_CARD":
@@ -977,7 +1060,7 @@ func main() {
 	}
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/", serveClient)
-	port := "8080"
+	port := "8008"
 	log.Printf("Server starting on :%s. WebSocket: /ws, Client: /", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
