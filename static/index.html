@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sequence Game Client</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -52,10 +53,10 @@
     }
 
     .chip {
-      width: 70%;
-      height: 70%;
+      width: 50%;
+      height: 50%;
       border-radius: 50%;
-      position: absolute;
+      /* position: relative; */
       top: 15%;
       left: 15%;
       border: 2px solid rgba(0, 0, 0, 0.5);
@@ -107,68 +108,136 @@
   </style>
 </head>
 
-<body class="bg-gray-100 p-2 md:p-6">
+<body x-data="sequenceGameApp()" class="bg-gray-100 p-2 md:p-6">
   <div class="container mx-auto max-w-7xl">
     <h1 class="text-2xl md:text-3xl font-bold text-center mb-4 text-blue-700">Sequence Game</h1>
 
-    <div id="connectionStatus" class="mb-4 p-3 rounded-md text-white bg-orange-500 text-center">
+    <div id="connectionStatus" :class="connectionStatusClass" x-text="connectionStatus" class="mb-4 p-3 rounded-md text-white bg-orange-500 text-center">
       Connecting to server...
     </div>
 
-    <div id="gameSetup" class="mb-6 p-4 md:p-6 bg-white rounded-lg shadow-md">
+    <div id="gameSetup" x-show="!inGame" class="mb-6 p-4 md:p-6 bg-white rounded-lg shadow-md">
       <h2 class="text-xl font-semibold mb-4 text-gray-700">Game Setup</h2>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
           <label for="playerName" class="block text-sm font-medium text-gray-700">Player Name:</label>
-          <input type="text" id="playerName" value="Player"
+          <input type="text" id="playerName" x-model="playerName" value="Player"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
         </div>
         <div id="createGameSection">
           <label for="maxPlayers" class="block text-sm font-medium text-gray-700">Max Players (2-12):</label>
-          <input type="number" id="maxPlayers" value="2" min="2" max="12"
+          <input type="number" id="maxPlayers" x-model.number="maxPlayers" value="2" min="2" max="12"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
           <label for="sequencesToWin" class="block text-sm font-medium text-gray-700 mt-2">Sequences to Win
             (1-2):</label>
-          <input type="number" id="sequencesToWin" value="2" min="1" max="2"
+          <input type="number" id="sequencesToWin" x-model.number="sequencesToWin" value="2" min="1" max="2"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-          <button id="createGameBtn"
-            class="mt-4 w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline">
+          <button
+            class="mt-4 w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
+            @click="createGame()"
+          >
             Create Game
           </button>
         </div>
         <div id="joinGameSection">
           <label for="gameIdInput" class="block text-sm font-medium text-gray-700">Game ID:</label>
-          <input type="text" id="gameIdInput"
+          <input type="text" id="gameIdInput" x-model="gameIdInput"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-          <button id="joinGameBtn"
-            class="mt-4 w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline">
+          <button
+            class="mt-4 w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
+            @click="joinGame()"
+          >
             Join Game
           </button>
         </div>
       </div>
+      <div class="mt-4 flex justify-center" x-show="!inGame && $data.hasStoredCredentials()">
+        <button
+          class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-md focus:outline-none focus:shadow-outline"
+          @click="$data.rejoinGame()"
+        >
+          Rejoin Previous Game
+        </button>
+      </div>
     </div>
 
-    <div id="gameArea" class="hidden">
+    <div id="gameArea" x-show="inGame">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="lg:w-1/4 p-4 bg-white rounded-lg shadow-md order-1 lg:order-none">
           <h2 class="text-xl font-semibold mb-3 text-gray-700">Game Info</h2>
           <div id="gameInfo" class="text-sm space-y-1 mb-4">
-            <p><strong>ID:</strong> <span id="displayGameId" class="break-all">N/A</span></p>
-            <p><strong>Status:</strong> <span id="gamePhase">N/A</span></p>
-            <p><strong>Turn:</strong> <span id="currentPlayerTurn">N/A</span></p>
-            <p><strong>Winner:</strong> <span id="gameWinner">N/A</span></p>
-            <p><strong>Draw Pile:</strong> <span id="drawPileCount">N/A</span></p>
+            <p><strong>ID:</strong> <span class="break-all" x-text="currentGameState && currentGameState.gameId ? currentGameState.gameId : 'N/A'"></span></p>
+            <p><strong>Status:</strong> <span x-text="currentGameState && currentGameState.gamePhase ? currentGameState.gamePhase : 'N/A'"></span></p>
+            <p><strong>Turn:</strong> <span x-text="currentGameState && currentGameState.currentTurnPlayerId && currentGameState.players && currentGameState.players[currentGameState.currentTurnPlayerId] ? (currentGameState.players[currentGameState.currentTurnPlayerId].name + ' (' + getCardEmoji(currentGameState.players[currentGameState.currentTurnPlayerId].chipColor) + ')') : 'N/A'"></span></p>
+            <p><strong>Winner:</strong> <span x-text="currentGameState && currentGameState.gamePhase === 'Finished' && currentGameState.winner && currentGameState.players && currentGameState.players[currentGameState.winner] ? (currentGameState.players[currentGameState.winner].name + ' wins!') : 'N/A'"></span></p>
+            <p><strong>Draw Pile:</strong> <span x-text="currentGameState && currentGameState.drawPileCount !== undefined ? currentGameState.drawPileCount : 'N/A'"></span></p>
           </div>
-          <button id="startGameBtn"
-            class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-md mb-4 hidden">
+          <button
+            class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-md mb-4"
+            x-show="currentGameState && currentGameState.gamePhase === 'Lobby' && localPlayerId === currentGameState.hostId && Object.keys(currentGameState.players || {}).length >= 1"
+            @click="startGame()"
+          >
             Start Game
           </button>
           <h3 class="text-lg font-semibold mb-2 text-gray-700">Players:</h3>
-          <div id="playersList" class="space-y-2"></div>
+          <div id="playersList" class="space-y-2">
+            <template x-if="currentGameState && currentGameState.players && currentGameState.playerOrder">
+              <template x-for="pid in currentGameState.playerOrder" :key="pid">
+                <div x-data="{ player: currentGameState.players[pid], team: (currentGameState.playerOrder.indexOf(pid) % 2 === 0 ? 'Team 1' : 'Team 2') }"
+                  :class="'player-info p-2 rounded text-sm ' + (player.id === currentGameState.currentTurnPlayerId && currentGameState.gamePhase === 'InProgress' ? 'current-turn' : 'bg-gray-50')">
+                  <div class="flex items-center">
+                    <span class="chip inline-block w-4 h-4 mr-2" :class="chipColors[player.chipColor] || defaultChipColor + ' !absolute !top-auto !left-auto !border-none !shadow-none'"></span>
+                    <strong class="ml-2" x-text="player.name"></strong>
+                    <span x-show="player.id === localPlayerId">(You)</span>
+                  </div>
+                  <div>
+                    <template x-if="currentGameState && currentGameState.gamePhase === 'Finished' && player.id === currentGameState.winner">
+                      <span class="text-green-700 font-bold">🏆 Winner!</span>
+                    </template>
+                    <template x-if="currentGameState && currentGameState.gamePhase === 'InProgress'">
+                      <div class="mb-1">
+                        <strong>Sequences:</strong> <span x-text="player.sequences"></span>
+                      </div>
+                    </template>
+                      <template x-if="currentGameState && currentGameState.gamePhase === 'InProgress'">
+                      <div>
+                        <strong>Cards:</strong> <span x-text="player.handCount"></span>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="text-xs" :class="player.isConnected ? 'text-green-600' : 'text-red-600'" x-text="player.isConnected ? 'Connected' : 'Disconnected'"></div>
+                </div>
+              </template>
+            </template>
+          </div>
         </div>
 
         <div class="flex-grow flex flex-col items-center order-none lg:order-1">
-          <div id="gameBoard" class="board-grid shadow-lg rounded-md overflow-hidden"></div>
+          <div id="gameBoard" class="board-grid shadow-lg rounded-md overflow-hidden">
+            <template x-if="currentGameState && currentGameState.board">
+              <template x-for="(row, r) in currentGameState.board" :key="r">
+                <template x-for="(cellData, c) in row" :key="c">
+                  <div
+                    class="board-cell p-1"
+                    :class="[
+                      cellData && cellData.isCorner ? 'corner-cell' : '',
+                      highlightedBoardSpots.some(s => s.x === r && s.y === c) ? 'bg-blue-100' : ''
+                    ]"
+                    @click="cellData && handleBoardCellClick(r, c, cellData)"
+                  >
+                    <span class="card-text-on-board" x-text="cellData && cellData.isCorner ? 'FREE' : (cellData && cellData.displayValue ? cellData.displayValue : ' ')"></span>
+                    <template x-if="cellData && cellData.occupiedBy && cellData.occupiedBy !== 'CORNER'">
+                      <div
+                        class="chip"
+                        :class="chipColors[currentGameState.players[cellData.occupiedBy]?.chipColor] || defaultChipColor"
+                        :style="cellData.isLocked ? 'border:3px solid gold;box-shadow:inset 0 0 5px rgba(0,0,0,0.3),0 0 8px gold' : ''"
+                      ></div>
+                    </template>
+                  </div>
+                </template>
+              </template>
+            </template>
+          </div>
         </div>
       </div>
 
@@ -176,10 +245,23 @@
         <h3 class="text-lg font-semibold mb-2 text-gray-700">Your Hand (<span id="myPlayerName">Player</span>):</h3>
         <div id="playerHand"
           class="player-hand flex flex-wrap justify-center mb-4 p-2 border border-gray-200 rounded-md bg-gray-50 min-h-[60px]">
+          <template x-if="currentGameState && currentGameState.hand && Array.isArray(currentGameState.hand)">
+            <template x-for="(cardId, idx) in currentGameState.hand" :key="cardId + '-' + idx">
+              <div
+                class="card-in-hand"
+                :class="selectedCardInHand && selectedCardInHand.id === cardId ? 'selected' : ''"
+                x-text="$data.getCardEmoji(cardId)"
+                @click="$data.handleCardInHandClick(cardId)"
+                :data-card-id="cardId"
+              ></div>
+            </template>
+          </template>
         </div>
         <div class="flex justify-center space-x-4">
-          <button id="declareDeadCardBtn"
-            class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline">
+          <button
+            class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
+            @click="declareDeadCard()"
+          >
             Declare Selected Card as Dead
           </button>
         </div>
@@ -188,366 +270,299 @@
 
     <div class="mt-6 p-4 bg-white rounded-lg shadow-md">
       <h3 class="text-lg font-semibold mb-2 text-gray-700">Game Log:</h3>
-      <div id="messageLog" class="h-32 overflow-y-auto border border-gray-200 rounded-md p-2 text-sm bg-gray-50"></div>
+      <div id="messageLog" class="h-32 overflow-y-auto border border-gray-200 rounded-md p-2 text-sm bg-gray-50">
+        <template x-for="msg in messageLog" :key="msg.time">
+          <p :class="msg.type === 'error' ? 'text-red-600' : (msg.type === 'success' ? 'text-green-600' : '')" x-text="msg.text"></p>
+        </template>
+      </div>
     </div>
   </div>
 
   <script>
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost = window.location.hostname || "localhost";
-    const wsPort = "8080";
-    let socket; // Declare socket variable
-
-    // DOM Elements
-    const playerNameInput = document.getElementById('playerName');
-    const maxPlayersInput = document.getElementById('maxPlayers');
-    const sequencesToWinInput = document.getElementById('sequencesToWin');
-    const gameIdInput = document.getElementById('gameIdInput');
-    const createGameBtn = document.getElementById('createGameBtn');
-    const joinGameBtn = document.getElementById('joinGameBtn');
-    const startGameBtn = document.getElementById('startGameBtn');
-    const declareDeadCardBtn = document.getElementById('declareDeadCardBtn');
-    const connectionStatusDiv = document.getElementById('connectionStatus');
-    const gameSetupDiv = document.getElementById('gameSetup');
-    const gameAreaDiv = document.getElementById('gameArea');
-    const gameBoardDiv = document.getElementById('gameBoard');
-    const playerHandDiv = document.getElementById('playerHand');
-    const displayGameId = document.getElementById('displayGameId');
-    const gamePhase = document.getElementById('gamePhase');
-    const currentPlayerTurn = document.getElementById('currentPlayerTurn');
-    const gameWinner = document.getElementById('gameWinner');
-    const drawPileCount = document.getElementById('drawPileCount');
-    const playersListDiv = document.getElementById('playersList');
-    const myPlayerNameSpan = document.getElementById('myPlayerName');
-    const messageLogDiv = document.getElementById('messageLog');
-
-    let localPlayerId = null;
-    let localGameId = null;
-    let localPlayerName = '';
-    let selectedCardInHand = null; // Stores the canonical card ID { id: "AS" }
-    let currentGameState = null;
-
-    const chipColors = { /* same as before */
-      "red": "bg-red-500", "blue": "bg-blue-500", "green": "bg-green-500",
-      "yellow": "bg-yellow-400", "purple": "bg-purple-500", "orange": "bg-orange-500",
-      "pink": "bg-pink-500", "cyan": "bg-cyan-500", "lime": "bg-lime-500",
-      "brown": "bg-amber-700", "teal": "bg-teal-500", "magenta": "bg-fuchsia-500",
-    };
-    const defaultChipColor = "bg-gray-400";
-
-    function connectWebSocket() {
-      socket = new WebSocket(`${wsProtocol}//${wsHost}:${wsPort}/ws`);
-
-      socket.onopen = () => {
-        connectionStatusDiv.textContent = 'Connected to server.';
-        connectionStatusDiv.className = 'mb-4 p-3 rounded-md text-white bg-green-500 text-center';
-        logMessage('WebSocket connection established.');
-      };
-
-      socket.onclose = () => {
-        connectionStatusDiv.textContent = 'Disconnected. Attempting to reconnect...';
-        connectionStatusDiv.className = 'mb-4 p-3 rounded-md text-white bg-red-500 text-center';
-        logMessage('WebSocket connection closed. Reconnecting...', 'error');
-        setTimeout(connectWebSocket, 3000); // Attempt to reconnect after 3 seconds
-      };
-
-      socket.onerror = (error) => {
-        connectionStatusDiv.textContent = 'Connection error.';
-        connectionStatusDiv.className = 'mb-4 p-3 rounded-md text-white bg-red-500 text-center';
-        logMessage(`WebSocket error: ${error.message || 'Unknown error'}`, 'error');
-        console.error("WebSocket Error: ", error);
-        // socket.close() will trigger onclose for reconnection logic
-      };
-
-      socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        logMessage(`Received: ${message.type} (Game: ${message.gameId ? message.gameId.substring(0, 6) : 'N/A'})`);
-        console.log("Received message: ", message);
-
-        if (message.type === "ERROR") {
-          logMessage(`Server Error: ${message.error}`, 'error');
-          alert(`Error: ${message.error}`);
-          return;
-        }
-
-        if (message.type === "HAND_UPDATE") {
-          // message.hand contains array of Card.ID strings ("AS", "10H")
-          updatePlayerHand(message.hand);
-          return;
-        }
-
-        currentGameState = message;
-        localGameId = message.gameId;
-
-        updateGameDisplay(message);
-
-        if (message.type === "GAME_CREATED" || (message.type === "PLAYER_JOINED" && !gameAreaDiv.classList.contains('hidden'))) {
-          gameSetupDiv.classList.add('hidden');
-          gameAreaDiv.classList.remove('hidden');
-          if (message.type === "GAME_CREATED") logMessage(`Game created: ${localGameId}. You are host.`, 'success');
-        } else if (message.type === "PLAYER_JOINED" || message.type === "GAME_STARTED" || message.type === "GAME_UPDATE") {
-          if (gameSetupDiv.classList.contains('hidden') === false) { // If joining an existing game
-            gameSetupDiv.classList.add('hidden');
-            gameAreaDiv.classList.remove('hidden');
-          }
-          if (message.details && message.details.message) {logMessage(message.details.message);}
-          if (message.details && message.details.error) {logMessage(message.details.error, 'error');}
-        }
-      };
-    }
-
-    // Helper to convert card ID (e.g., "AS", "10H") to emoji string ("A♠️", "10♥️")
-    function getCardEmoji(cardId) {
-      if (!cardId || cardId.length < 2) return cardId;
-
-      let rankPart = "";
-      let suitChar = "";
-
-      if (cardId.startsWith("10")) {
-        rankPart = "10";
-        suitChar = cardId.substring(2);
-      } else {
-        rankPart = cardId.substring(0, 1);
-        suitChar = cardId.substring(1);
+    function sequenceGameApp() {
+      function generateRandomPlayerName() {
+        // Fun random name: Adjective + Animal
+        const adjectives = ["Swift", "Lucky", "Clever", "Brave", "Sneaky", "Happy", "Wild", "Mighty", "Chill", "Funky", "Cool", "Witty", "Bold", "Sunny", "Fuzzy"];
+        const animals = ["Fox", "Tiger", "Bear", "Wolf", "Eagle", "Otter", "Lion", "Panda", "Falcon", "Shark", "Moose", "Hawk", "Bison", "Lynx", "Seal"];
+        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+        const animal = animals[Math.floor(Math.random() * animals.length)];
+        const num = Math.floor(100 + Math.random() * 900); // 3-digit number
+        return `${adj}${animal}${num}`;
       }
+      return {
+        wsProtocol: window.location.protocol === "https:" ? "wss:" : "ws:",
+        wsHost: window.location.hostname || "localhost",
+        wsPort: "8008",
+        socket: null,
+        playerName: 'Player',
+        maxPlayers: 2,
+        sequencesToWin: 2,
+        gameIdInput: '',
+        localPlayerId: null,
+        localGameId: null,
+        localPlayerName: '',
+        selectedCardInHand: null, // { id: "AS" }
+        highlightedBoardSpots: [], // Array of {x, y} positions
+        currentGameState: null,
+        chipColors: {
+          "red": "bg-red-500", "blue": "bg-blue-500", "green": "bg-green-500",
+          "yellow": "bg-yellow-400", "purple": "bg-purple-500", "orange": "bg-orange-500",
+          "pink": "bg-pink-500", "cyan": "bg-cyan-500", "lime": "bg-lime-500",
+          "brown": "bg-amber-700", "teal": "bg-teal-500", "magenta": "bg-fuchsia-500",
+        },
+        defaultChipColor: "bg-gray-400",
+        connectionStatus: 'Connecting to server...',
+        connectionStatusClass: 'mb-4 p-3 rounded-md text-white bg-orange-500 text-center',
+        messageLog: [],
+        inGame: false,
+        init() {
+          // Restore from localStorage if available
+          const storedName = localStorage.getItem('sequence_localPlayerName');
+          const storedGameId = localStorage.getItem('sequence_localGameId');
+          if (storedName) {
+            this.playerName = storedName;
+          } else {
+            this.playerName = generateRandomPlayerName();
+          }
+          if (storedGameId) this.gameIdInput = storedGameId;
+          this.connectWebSocket();
+        },
+        connectWebSocket() {
+          // Always send handshake with playerId if available
+          const storedPlayerId = localStorage.getItem('sequence_localPlayerId');
+          this.socket = new WebSocket(`${this.wsProtocol}//${this.wsHost}:${this.wsPort}/ws`);
+          this.socket.onopen = () => {
+            // Send handshake with playerId if present
+            let handshake = {};
+            if (storedPlayerId) handshake.playerId = storedPlayerId;
+            this.socket.send(JSON.stringify(handshake));
+            this.connectionStatus = 'Connected!';
+            this.connectionStatusClass = 'mb-4 p-3 rounded-md text-white bg-green-500 text-center';
+            this.logMessage('WebSocket connected.', 'success');
+          };
+          this.socket.onclose = () => {
+            this.connectionStatus = 'Disconnected. Attempting to reconnect...';
+            this.connectionStatusClass = 'mb-4 p-3 rounded-md text-white bg-red-500 text-center';
+            this.logMessage('WebSocket connection closed. Reconnecting...', 'error');
+            setTimeout(() => this.connectWebSocket(), 3000);
+          };
+          this.socket.onerror = (error) => {
+            this.connectionStatus = 'Connection error.';
+            this.connectionStatusClass = 'mb-4 p-3 rounded-md text-white bg-red-500 text-center';
+            this.logMessage(`WebSocket error: ${error.message || 'Unknown error'}`, 'error');
+          };
+          this.socket.onmessage = (event) => {
+            let msg;
+            try {
+              msg = JSON.parse(event.data);
+            } catch (e) {
+              this.logMessage("Received invalid JSON from server.", "error");
+              return;
+            }
+            this.logMessage(`Received: ${msg.type} (Game: ${msg.gameId ? msg.gameId.substring(0, 6) : 'N/A'})`);
+            if (msg.type === "ERROR") {
+              this.logMessage(`Server Error: ${msg.error}`, 'error');
+              alert(`Error: ${msg.error}`);
+              return;
+            }
+            if (msg.type === "HAND_UPDATE") {
+              this.currentGameState = this.currentGameState || {};
+              this.currentGameState.hand = Array.isArray(msg.hand) ? msg.hand : [];
+              return;
+            }
+            // Preserve hand if present
+            const prevHand = this.currentGameState && Array.isArray(this.currentGameState.hand) ? this.currentGameState.hand : [];
+            this.currentGameState = msg;
+            if (prevHand && prevHand.length > 0) this.currentGameState.hand = prevHand;
+            this.localGameId = msg.gameId;
+            // Exit game area if finished and show winner prompt
+            if (msg.gamePhase === "Finished" && msg.winner && msg.players && msg.players[msg.winner]) {
+              this.inGame = false;
+              setTimeout(() => {
+                alert(`${msg.players[msg.winner].name} has won the game!`);
+                window.location.reload();
+              }, 500);
+            }
+            // Store gameId for reconnect
+            if (msg.gameId) localStorage.setItem('sequence_localGameId', msg.gameId);
+            // Player ID assignment
+            if (msg.players && msg.players[this.localPlayerId]) {
+              // Already have correct playerId
+            } else if (!this.localPlayerId && msg.players) {
+              // Try to find by name
+              for (const pid in msg.players) {
+                if (msg.players[pid].name === this.localPlayerName) {
+                  this.localPlayerId = pid;
+                  localStorage.setItem('sequence_localPlayerId', pid);
+                  break;
+                }
+              }
+            }
+            // Show game area if game is created/joined/started/updated
+            if (["GAME_UPDATE", "GAME_CREATED", "PLAYER_JOINED", "GAME_STARTED"].includes(msg.type)) {
+              this.inGame = true; // Ensure board is shown after rejoin or join
+            }
+          };
+        },
+        getCardEmoji(cardId) {
+          if (!cardId || cardId.length < 2) return cardId;
+          let rankPart = "";
+          let suitChar = "";
+          if (cardId.startsWith("10")) {
+            rankPart = "10";
+            suitChar = cardId.substring(2);
+          } else {
+            rankPart = cardId.substring(0, 1);
+            suitChar = cardId.substring(1);
+          }
+          const suitEmojis = {'S': '♠️', 'H': '♥️', 'D': '♦️', 'C': '♣️'};
+          return rankPart + (suitEmojis[suitChar] || suitChar);
+        },
+        logMessage(message, type = 'info') {
+          this.messageLog.push({
+            text: `[${new Date().toLocaleTimeString()}] ${message}`,
+            type: type,
+            time: Date.now() + Math.random()
+          });
+          this.$nextTick(() => {
+            const logDiv = document.getElementById('messageLog');
+            if (logDiv) logDiv.scrollTop = logDiv.scrollHeight;
+          });
+        },
+        handleCardInHandClick(cardId) {
+          if (this.selectedCardInHand && this.selectedCardInHand.id === cardId) {
+            this.selectedCardInHand = null;
+            this.highlightedBoardSpots = [];
+          } else {
+            this.selectedCardInHand = {id: cardId};
+            this.logMessage(`Selected card: ${this.getCardEmoji(cardId)} (ID: ${cardId})`);
+            // Highlight possible board spots
+            this.highlightedBoardSpots = this.getPlayableBoardSpots(cardId);
+          }
+        },
+        getPlayableBoardSpots(cardId) {
+          // Returns array of {x, y} for valid spots for the selected card
+          if (!this.currentGameState || !this.currentGameState.board) return [];
+          const spots = [];
+          // Find card info (Jacks, etc)
+          let isJack = false, isOneEyed = false, isTwoEyed = false;
+          if (cardId.endsWith('H') || cardId.endsWith('D')) {
+            if (cardId.startsWith('J')) isJack = isTwoEyed = true;
+          } else if (cardId.endsWith('S') || cardId.endsWith('C')) {
+            if (cardId.startsWith('J')) isJack = isOneEyed = true;
+          }
+          for (let x = 0; x < this.currentGameState.board.length; x++) {
+            for (let y = 0; y < this.currentGameState.board[x].length; y++) {
+              const cell = this.currentGameState.board[x][y];
+              if (isOneEyed) {
+                // One-eyed Jack: can remove opponent's chip (not own, not corner, not locked)
+                if (cell.occupiedBy && cell.occupiedBy !== 'CORNER' && cell.occupiedBy !== this.localPlayerId && !cell.isLocked) {
+                  spots.push({x, y});
+                }
+              } else if (isTwoEyed) {
+                // Two-eyed Jack: can place anywhere (except occupied, except corner)
+                if ((!cell.occupiedBy || cell.occupiedBy === 'CORNER') && !cell.isCorner) {
+                  spots.push({x, y});
+                }
+              } else {
+                // Normal card: must match cardId, not occupied, not corner
 
-      const suitEmojis = {'S': '♠️', 'H': '♥️', 'D': '♦️', 'C': '♣️'};
-      return rankPart + (suitEmojis[suitChar] || suitChar);
-    }
-
-
-    function logMessage(message, type = 'info') { /* same as before */
-      const p = document.createElement('p');
-      p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-      if (type === 'error') p.classList.add('text-red-600');
-      else if (type === 'success') p.classList.add('text-green-600');
-      messageLogDiv.appendChild(p);
-      messageLogDiv.scrollTop = messageLogDiv.scrollHeight;
-    }
-
-
-    function updateGameDisplay(state) {
-      if (!state) return;
-
-      displayGameId.textContent = state.gameId || 'N/A';
-      gamePhase.textContent = state.gamePhase || 'N/A';
-      drawPileCount.textContent = state.drawPileCount !== undefined ? state.drawPileCount : 'N/A';
-
-      if (!localPlayerId && state.players) {
-        // Try to find our player ID by matching the name (simplistic)
-        // This assumes player names are unique for this to work reliably before host assignment
-        if (localPlayerName) {
-          for (const pid in state.players) {
-            if (state.players[pid].name === localPlayerName) {
-              localPlayerId = pid;
-              myPlayerNameSpan.textContent = `${state.players[pid].name} (You)`;
-              break;
+                console.log(`Checking cell (${x}, ${y}) for card ${cardId}:`, cell);
+                if (cell.card && cell.card.ID === cardId && !cell.occupiedBy && !cell.isCorner) {
+                  spots.push({x, y});
+                }
+              }
             }
           }
-        }
-        // If host, set localPlayerId
-        if (!localPlayerId && localPlayerName === state.players[state.hostId]?.name) {
-          localPlayerId = state.hostId;
-          myPlayerNameSpan.textContent = `${state.players[state.hostId].name} (You - Host)`;
-        }
-      }
-
-
-      if (state.gamePhase === "InProgress" && state.currentTurnPlayerId) {
-        const turnPlayer = state.players[state.currentTurnPlayerId];
-        currentPlayerTurn.textContent = turnPlayer ? `${turnPlayer.name} (${getCardEmoji(turnPlayer.chipColor)})` : 'Unknown'; // chipColor is string "red"
-      } else {
-        currentPlayerTurn.textContent = 'N/A';
-      }
-
-      if (state.gamePhase === "Finished" && state.winner) {
-        const winnerPlayer = state.players[state.winner];
-        const winnerText = winnerPlayer ? `${winnerPlayer.name} wins!` : `${state.winner} wins!`;
-        gameWinner.textContent = winnerText;
-        logMessage(winnerText, 'success');
-        // alert(winnerText); // Consider a less intrusive notification
-      } else {
-        gameWinner.textContent = 'N/A';
-      }
-
-      playersListDiv.innerHTML = '';
-      if (state.players && state.playerOrder) {
-        state.playerOrder.forEach(pid => {
-          const player = state.players[pid];
-          if (player) {
-            const playerDiv = document.createElement('div');
-            playerDiv.className = `player-info p-2 rounded text-sm ${player.id === state.currentTurnPlayerId && state.gamePhase === "InProgress" ? 'current-turn' : 'bg-gray-50'}`;
-            let chipColorClass = chipColors[player.chipColor] || defaultChipColor;
-            playerDiv.innerHTML = `
-                            <div class="flex items-center">
-                                <span class="chip inline-block w-4 h-4 mr-2 ${chipColorClass} !absolute !top-auto !left-auto !border-none !shadow-none"></span>
-                                <strong class="ml-6">${player.name}</strong> ${player.id === localPlayerId ? '(You)' : ''}
-                            </div>
-                            <div>Sequences: ${player.sequences} | Cards: ${player.handCount}</div>
-                            <div class="text-xs ${player.isConnected ? 'text-green-600' : 'text-red-600'}">${player.isConnected ? 'Connected' : 'Disconnected'}</div>
-                        `;
-            playersListDiv.appendChild(playerDiv);
+          console.log(`Playable spots for ${this.getCardEmoji(cardId)}:`, spots);
+          return spots;
+        },
+        handleBoardCellClick(r, c, cellData) {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {this.logMessage("Not connected.", "error"); return;}
+          if (!this.selectedCardInHand) {this.logMessage('Please select a card from your hand first.', "error"); return;}
+          if (!this.currentGameState || this.currentGameState.gamePhase !== "InProgress" || this.currentGameState.currentTurnPlayerId !== this.localPlayerId) {
+            this.logMessage("Not your turn or game not in progress.", "error"); return;
           }
-        });
-      }
-
-      if (state.gamePhase === "Lobby" && localPlayerId === state.hostId && Object.keys(state.players).length >= 1) {
-        startGameBtn.classList.remove('hidden');
-      } else {
-        startGameBtn.classList.add('hidden');
-      }
-
-      renderBoard(state.board);
-    }
-
-    function renderBoard(boardData) {
-      gameBoardDiv.innerHTML = '';
-      if (!boardData) {logMessage("Board data missing for render.", "error"); return;}
-
-      for (let r = 0; r < 10; r++) {
-        for (let c = 0; c < 10; c++) {
-          const cellData = boardData[r] ? boardData[r][c] : null;
-          if (!cellData) {
-            // console.warn(`Missing cell data for board[${r}][${c}]`); 
-            // Create an empty cell to maintain grid structure
-            const emptyCellDiv = document.createElement('div');
-            emptyCellDiv.className = 'board-cell p-1 bg-gray-200'; // Visually distinct empty cell
-            emptyCellDiv.textContent = '?';
-            gameBoardDiv.appendChild(emptyCellDiv);
-            continue;
+          const payload = {
+            gameId: this.localGameId,
+            cardId: this.selectedCardInHand.id,
+            boardPos: {x: r, y: c}
+          };
+          this.socket.send(JSON.stringify({actionType: "PLAY_ACTION", payload: payload}));
+          this.logMessage(`Attempting to play ${this.getCardEmoji(this.selectedCardInHand.id)} at (${r}, ${c})`);
+          this.selectedCardInHand = null;
+          this.highlightedBoardSpots = [];
+        },
+        createGame() {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {this.logMessage("Not connected.", "error"); return;}
+          this.localPlayerName = this.playerName.trim();
+          if (!this.localPlayerName) {alert("Please enter a player name."); return;}
+          const payload = {
+            playerName: this.localPlayerName,
+            maxPlayers: this.maxPlayers,
+            sequencesToWin: this.sequencesToWin
+          };
+          // Clear any previous playerId for new game
+          localStorage.removeItem('sequence_localPlayerId');
+          // Store for reconnect
+          localStorage.setItem('sequence_localPlayerName', this.localPlayerName);
+          // gameId will be set after server response
+          this.socket.send(JSON.stringify({actionType: "CREATE_GAME", payload: payload}));
+        },
+        joinGame() {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {this.logMessage("Not connected.", "error"); return;}
+          this.localPlayerName = this.playerName.trim();
+          const gameId = this.gameIdInput.trim();
+          if (!this.localPlayerName || !gameId) {alert("Please enter player name and Game ID."); return;}
+          // Store for reconnect
+          localStorage.setItem('sequence_localPlayerName', this.localPlayerName);
+          localStorage.setItem('sequence_localGameId', gameId);
+          const payload = {playerName: this.localPlayerName, gameId: gameId};
+          this.socket.send(JSON.stringify({actionType: "JOIN_GAME", payload: payload}));
+        },
+        startGame() {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {this.logMessage("Not connected.", "error"); return;}
+          if (!this.localGameId) {alert("No game to start."); return;}
+          const payload = {gameId: this.localGameId, playerName: this.localPlayerName};
+          this.socket.send(JSON.stringify({actionType: "START_GAME", payload: payload}));
+        },
+        declareDeadCard() {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {this.logMessage("Not connected.", "error"); return;}
+          if (!this.selectedCardInHand) {alert("Select a card to declare as dead."); return;}
+          if (!this.currentGameState || this.currentGameState.gamePhase !== "InProgress" || this.currentGameState.currentTurnPlayerId !== this.localPlayerId) {
+            this.logMessage("Not your turn or game not in progress.", "error"); return;
           }
-
-          const cellDiv = document.createElement('div');
-          cellDiv.className = 'board-cell p-1';
-          cellDiv.dataset.r = r;
-          cellDiv.dataset.c = c;
-
-          const cardText = document.createElement('span');
-          cardText.className = 'card-text-on-board';
-          // cellData.displayValue comes from backend (e.g., "A♠️", "FREE")
-          cardText.textContent = cellData.displayValue || ' ';
-          if (cellData.isCorner) {
-            cellDiv.classList.add('corner-cell');
-            cardText.textContent = "FREE"; // Ensure FREE is prominent
+          const payload = {gameId: this.localGameId, cardId: this.selectedCardInHand.id};
+          this.socket.send(JSON.stringify({actionType: "DEAD_CARD", payload: payload}));
+          this.logMessage(`Attempting to declare ${this.getCardEmoji(this.selectedCardInHand.id)} as dead.`);
+          this.selectedCardInHand = null;
+        },
+        hasStoredCredentials() {
+          return !!(localStorage.getItem('sequence_localPlayerName') && localStorage.getItem('sequence_localGameId'));
+        },
+        rejoinGame() {
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            this.logMessage("Not connected.", "error");
+            alert("Not connected to server.");
+            return;
           }
-          cellDiv.appendChild(cardText);
-
-          if (cellData.occupiedBy && cellData.occupiedBy !== "CORNER") {
-            const player = currentGameState.players[cellData.occupiedBy];
-            const chipDiv = document.createElement('div');
-            let chipColorClass = defaultChipColor;
-            if (player && chipColors[player.chipColor]) {
-              chipColorClass = chipColors[player.chipColor];
-            }
-            chipDiv.className = `chip ${chipColorClass}`;
-            if (cellData.isLocked) {
-              chipDiv.style.border = "3px solid gold";
-              chipDiv.style.boxShadow = "inset 0 0 5px rgba(0,0,0,0.3), 0 0 8px gold"; // Glow for locked
-            }
-            cellDiv.appendChild(chipDiv);
+          const storedName = localStorage.getItem('sequence_localPlayerName');
+          const storedGameId = localStorage.getItem('sequence_localGameId');
+          if (!storedName || !storedGameId) {
+            this.logMessage("No stored credentials found.", "error");
+            alert("No stored credentials found.");
+            return;
           }
-
-          cellDiv.onclick = () => handleBoardCellClick(r, c, cellData);
-          gameBoardDiv.appendChild(cellDiv);
+          this.localPlayerName = storedName;
+          this.playerName = storedName;
+          this.gameIdInput = storedGameId;
+          this.logMessage('Attempting manual rejoin...');
+          // Fix: Always set inGame to true on rejoin attempt
+          this.inGame = true;
+          this.socket.send(JSON.stringify({actionType: "JOIN_GAME", payload: {playerName: storedName, gameId: storedGameId}}));
         }
       }
     }
-
-    // handCardIds are the canonical IDs like "AS", "10H"
-    function updatePlayerHand(handCardIds) {
-      playerHandDiv.innerHTML = '';
-      if (!handCardIds) return;
-
-      handCardIds.forEach(cardId => { // cardId is "AS", "10H"
-        const cardDiv = document.createElement('div');
-        cardDiv.className = 'card-in-hand';
-        cardDiv.textContent = getCardEmoji(cardId); // Display "A♠️"
-        cardDiv.dataset.cardId = cardId; // Store "AS"
-        if (selectedCardInHand && selectedCardInHand.id === cardId) {
-          cardDiv.classList.add('selected');
-        }
-        cardDiv.onclick = () => handleCardInHandClick(cardId, cardDiv);
-        playerHandDiv.appendChild(cardDiv);
-      });
-    }
-
-    // cardId parameter is the canonical ID ("AS", "10H")
-    function handleCardInHandClick(cardId, cardDivElement) {
-      if (selectedCardInHand && selectedCardInHand.element) {
-        selectedCardInHand.element.classList.remove('selected');
-      }
-      if (selectedCardInHand && selectedCardInHand.id === cardId) {
-        selectedCardInHand = null; // Deselect
-      } else {
-        selectedCardInHand = {id: cardId, element: cardDivElement}; // cardId is "AS"
-        cardDivElement.classList.add('selected');
-        logMessage(`Selected card: ${getCardEmoji(cardId)} (ID: ${cardId})`);
-      }
-    }
-
-    function handleBoardCellClick(r, c, cellData) {
-      if (!socket || socket.readyState !== WebSocket.OPEN) {logMessage("Not connected.", "error"); return;}
-      if (!selectedCardInHand) {logMessage('Please select a card from your hand first.', 'error'); return;}
-      if (!currentGameState || currentGameState.gamePhase !== "InProgress" || currentGameState.currentTurnPlayerId !== localPlayerId) {
-        logMessage("Not your turn or game not in progress.", "error"); return;
-      }
-
-      const payload = {
-        gameId: localGameId,
-        cardId: selectedCardInHand.id, // Send canonical ID "AS"
-        boardPos: {x: r, y: c}
-      };
-      socket.send(JSON.stringify({actionType: "PLAY_ACTION", payload: payload}));
-      logMessage(`Attempting to play ${getCardEmoji(selectedCardInHand.id)} at (${r}, ${c})`);
-
-      if (selectedCardInHand.element) selectedCardInHand.element.classList.remove('selected');
-      selectedCardInHand = null;
-    }
-
-    createGameBtn.onclick = () => { /* same as before, ensure socket is open */
-      if (!socket || socket.readyState !== WebSocket.OPEN) {logMessage("Not connected.", "error"); return;}
-      localPlayerName = playerNameInput.value.trim();
-      if (!localPlayerName) {alert("Please enter a player name."); return;}
-      const payload = {
-        playerName: localPlayerName,
-        maxPlayers: parseInt(maxPlayersInput.value),
-        sequencesToWin: parseInt(sequencesToWinInput.value)
-      };
-      socket.send(JSON.stringify({actionType: "CREATE_GAME", payload: payload}));
-    };
-
-    joinGameBtn.onclick = () => { /* same as before, ensure socket is open */
-      if (!socket || socket.readyState !== WebSocket.OPEN) {logMessage("Not connected.", "error"); return;}
-      localPlayerName = playerNameInput.value.trim();
-      const gameId = gameIdInput.value.trim();
-      if (!localPlayerName || !gameId) {alert("Please enter player name and Game ID."); return;}
-      const payload = {playerName: localPlayerName, gameId: gameId};
-      socket.send(JSON.stringify({actionType: "JOIN_GAME", payload: payload}));
-    };
-
-    startGameBtn.onclick = () => { /* same as before, ensure socket is open */
-      if (!socket || socket.readyState !== WebSocket.OPEN) {logMessage("Not connected.", "error"); return;}
-      if (!localGameId) {alert("No game to start."); return;}
-      const payload = {gameId: localGameId, playerName: localPlayerName};
-      socket.send(JSON.stringify({actionType: "START_GAME", payload: payload}));
-    };
-
-    declareDeadCardBtn.onclick = () => {
-      if (!socket || socket.readyState !== WebSocket.OPEN) {logMessage("Not connected.", "error"); return;}
-      if (!selectedCardInHand) {alert("Select a card to declare as dead."); return;}
-      if (!currentGameState || currentGameState.gamePhase !== "InProgress" || currentGameState.currentTurnPlayerId !== localPlayerId) {
-        logMessage("Not your turn or game not in progress.", "error"); return;
-      }
-      const payload = {gameId: localGameId, cardId: selectedCardInHand.id}; // Send canonical ID
-      socket.send(JSON.stringify({actionType: "DEAD_CARD", payload: payload}));
-      logMessage(`Attempting to declare ${getCardEmoji(selectedCardInHand.id)} as dead.`);
-      if (selectedCardInHand.element) selectedCardInHand.element.classList.remove('selected');
-      selectedCardInHand = null;
-    };
-
-    // Initial connection
-    connectWebSocket();
-
   </script>
 </body>
 
