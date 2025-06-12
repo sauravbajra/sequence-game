@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a multiplayer implementation of the classic board game Sequence. It features a backend built with Go to handle game logic, state management, and real-time communication via WebSockets. The frontend is a web client built with HTML, Tailwind CSS, and JavaScript, allowing users to interact with the game in their browsers.
+This project is a multiplayer implementation of the classic board game Sequence. It features a backend built with Go to handle game logic, state management, and real-time communication via WebSockets. The frontend is a web client built with HTML, Tailwind CSS, Alpine.js, and JavaScript, allowing users to interact with the game in their browsers.
 
 ## Features
 
@@ -19,7 +19,8 @@ This project is a multiplayer implementation of the classic board game Sequence.
     * Win condition checking.
 * **Static File Serving:** The Go backend also serves the static HTML client.
 * **Card Emojis:** Uses card suit emojis for a more visual representation on the board and in player hands.
-* **Valid Move Highlighting:** The web client highlights possible valid moves on the board when a card is selected from the player's hand.
+* **Valid Move Highlighting:** The web client highlights possible valid moves on the board with a light background when a card is selected from the player's hand.
+* **Rejoin Support:** Players can refresh or reconnect and will automatically rejoin their game and hand if their browser localStorage is intact.
 
 ## Technologies Used
 
@@ -29,18 +30,19 @@ This project is a multiplayer implementation of the classic board game Sequence.
 * **Frontend:**
     * HTML5
     * Tailwind CSS (via CDN)
+    * Alpine.js (via CDN)
     * JavaScript (Vanilla)
 
 ## File Structure
 
-
+```
 .
 ├── main.go             # Core Go backend server logic
 ├── static/
 │   └── index.html      # HTML web client
 ├── Makefile            # Makefile for building, running, and cleaning the project
 └── README.md           # This file: Project overview, setup, and usage
-
+```
 
 ## Setup & Running
 
@@ -122,14 +124,15 @@ This project includes a `Makefile` for convenient building and running:
 * **UI Management:**
     * Game setup section (create/join game, player name).
     * Game area display (board, player info, hand).
-* **Board Rendering (`renderBoard`):** Dynamically creates the 10x10 game board based on data from the server.
-* **Hand Display (`updatePlayerHand`):** Shows the current player's cards.
+* **Board Rendering:** Dynamically creates the 10x10 game board based on data from the server.
+* **Hand Display:** Shows the current player's cards.
 * **Action Handling:**
     * `handleCardInHandClick()`: Manages card selection from the hand.
-    * `highlightValidMoves()`: Visually indicates where the selected card can be played.
+    * `highlightValidMoves()`: Visually indicates where the selected card can be played (with a light background highlight).
     * `handleBoardCellClick()`: Sends play actions to the server when a board cell is clicked.
     * Handles "Declare Dead Card," "Create Game," "Join Game," and "Start Game" actions.
 * **State Synchronization:** Updates the UI based on messages received from the server.
+* **Rejoin Logic:** The client automatically attempts to rejoin the previous game and hand after a refresh or reconnect, using localStorage.
 
 ## Important Note on Board Layout
 
